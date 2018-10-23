@@ -1,0 +1,60 @@
+#!/bin/sh
+if [ "$1" == 1 ] ; then
+	line1ip=a.a.a.a
+	line1mask=255.255.255.248
+	line1gw=a.a.a.z
+	line1work=a.a.a.x
+	line2ip=b.b.b.b
+	line2mask=255.255.255.0
+	line2gw=b.b.b.z
+	logger "WPS按钮" "功能触发"
+
+	nowgw=`route | awk 'NR==3{print $2}'`
+	if [ $nowgw == $line1gw ] ; then
+		
+		if ping -c 1 -w 2 $line2gw >/dev/null; then
+				route del default gw $line1gw
+				route add default gw $line2gw
+				iptables -t nat -D PREROUTING -d $line1ip/32 -j vserver
+				iptables -t nat -D POSTROUTING -s 10.8.0.0/24 -o eth2.2 -j SNAT --to-source $line1ip
+				iptables -t nat -D POSTROUTING -s 10.1.1.0/24 -o eth2.2 -j SNAT --to-source $line1ip
+				ip addr add 172.28.70.254/24 dev eth2.2
+				ip addr add 172.28.9.249/28 dev eth2.2
+				ip route del 218.192.255.0/24
+				ip route del 172.30.104.0/24
+				ip route del 100.68.0.0/15
+				ip route del 10.0.0.0/8
+				iptables -t nat -I PREROUTING -d $line2ip/32 -j vserver
+				iptables -t nat -I POSTROUTING -s 10.8.0.0/24 -o eth2.2 -j SNAT --to-source $line2ip
+				iptables -t nat -I POSTROUTING -s 10.1.1.0/24 -o eth2.2 -j SNAT --to-source $line2ip
+				logger "线路转换" "line1--转换--line2成功"
+			else
+				logger "线路转换" "line1--转换--line2失败"
+				break
+		fi
+	fi
+
+	if [ $nowgw == $line2gw ] ; then
+
+		if ping -c 1 -w 2 $line1gw >/dev/null; then
+				route del default gw $line2gw
+				route add default gw $line1gw
+				iptables -t nat -D PREROUTING -d $line2ip/32 -j vserver
+				iptables -t nat -D POSTROUTING -s 10.8.0.0/24 -o eth2.2 -j SNAT --to-source $line2ip
+				iptables -t nat -D POSTROUTING -s 10.1.1.0/24 -o eth2.2 -j SNAT --to-source $line2ip
+				route add -net 218.192.255.0 netmask 255.255.255.0 gw $line1work
+				route add -net 172.30.104.0 netmask 255.255.255.0 gw $line1work
+				route add -net 100.68.0.0 netmask 255.254.0.0 gw $line1work
+				route add -net 10.0.0.0 netmask 255.0.0.0 gw $line1work
+				iptables -t nat -I PREROUTING -d $line1ip/32 -j vserver
+				iptables -t nat -I POSTROUTING -s 10.8.0.0/24 -o eth2.2 -j SNAT --to-source $line1ip
+				iptables -t nat -I POSTROUTING -s 10.1.1.0/24 -o eth2.2 -j SNAT --to-source $line1ip
+				logger "线路转换" "line2--转换--line1成功"
+		else
+				logger "线路转换" "line2--转换--line1失败"
+				break
+		fi
+	fi
+else
+	logger "WPS按钮" "不能重复执行"
+fi
